@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Raft Manual Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #0a0a0f;
+            padding: 20px;
+            color: #fff;
+        }
+        .video-container {
+            width: 100%;
+            max-width: 640px;
+            margin-bottom: 20px;
+            background: #000;
+            border-radius: 15px;
+            overflow: hidden;
+            border: 1px solid #2a2a3a;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        #videoFeed {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .control-panel {
+            text-align: center;
+            background: linear-gradient(145deg, #151520, #1a1a25);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 400px;
+            border: 1px solid #2a2a3a;
+        }
+        .button {
+            width: 90px;
+            height: 90px;
+            margin: 12px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #1e1e2d, #252535);
+            color: #4a9eff;
+            font-size: 28px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(74,158,255,0.2);
+        }
+        .button:active {
+            transform: translateY(1px);
+            background: linear-gradient(145deg, #252535, #1e1e2d);
+        }
+        .button.active {
+            background: linear-gradient(145deg, #0056b3, #007bff);
+            color: white;
+            box-shadow: 0 0 20px rgba(74,158,255,0.4);
+        }
+        #status {
+            margin: 20px 0;
+            font-weight: 500;
+            color: #4a9eff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 14px;
+        }
+        #motor-status {
+            margin: 20px 0;
+            font-weight: 500;
+            color: #4a9eff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 14px;
+        }
+        .chevron-up {
+            position: relative;
+            width: 24px;
+            height: 24px;
+            position: relative;
+        }
+        .chevron-up::before,
+        .chevron-up::after {
+            content: '';
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        border-top: 4px solid currentColor;
+        border-right: 4px solid currentColor;
+        transform: rotate(-45deg);
+        top: 0;
+        left: 50%;
+        margin-left: -7px;
+        }
+        
+        .chevron-up::after {
+            top: 8px;
+        }
+
+        .chevron-left {
+            position: relative;
+            width: 24px;
+            height: 24px;
+            position: relative;
+        }
+        .chevron-left::before {
+            content: '';
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-top: 4px solid currentColor;
+            border-right: 4px solid currentColor;
+            top: 50%;
+            left: 50%;
+            margin-top: -5px;
+            margin-left: -7px;
+            transform: rotate(-135deg);
+        }
+        
+        .chevron-right {
+            position: relative;
+            width: 24px;
+            height: 24px;
+            position: relative;
+        }
+        .chevron-right::before {
+            content: '';
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-top: 4px solid currentColor;
+            border-right: 4px solid currentColor;
+            top: 50%;
+            left: 50%;
+            margin-top: -5px;
+            margin-left: -7px;
+            transform: rotate(45deg);
+        }
+        
+
+        
+
+        h2 {
+            color: #4a9eff;
+            font-weight: 600;
+            margin-bottom: 25px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="video-container">
+        <img id="videoFeed" alt="Camera Feed">
+    </div>
+    <div class="control-panel">
+        <h2>Raft Control</h2>
+        <div id="status">Status: Stopped</div>
+        <div id="motor-status">
+            <span>Left RPM: <span id="left-motor-rpm">0</span></span>
+            <span>Right RPM: <span id="right-motor-rpm">0</span></span>
+        </div>
+        
+        <!--//Mode: Manual/Auto -->
+        <div>
+            <button id="leftBtn" class="button">
+                <div class="chevron-left"></div></button>
+            <button id="forwardBtn" class="button">
+                <div class="chevron-up"></div>
+            </button>
+            <button id="rightBtn" class="button">
+                <div class="chevron-right"></div>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // [Previous JavaScript code remains the same]
+        const socket = io();
+        const videoFeed = document.getElementById('videoFeed');
+        const buttons = {
+            left: document.getElementById('leftBtn'),
+            forward: document.getElementById('forwardBtn'),
+            right: document.getElementById('rightBtn')
+        };
+        const statusDisplay = document.getElementById('status');
+        let isMoving = false;
+
+        socket.on('video_frame', (data) => {
+            videoFeed.src = `data:image/jpeg;base64,${data.frame}`;
+        });
+
+        
+
+        function sendControl(direction) {
+            fetch('/control', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ direction: direction })
+            })
+            .then(response => response.json())
+            .then(data => {
+                isMoving = data.is_moving;
+                updateStatus();
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function updateStatus() {
+            statusDisplay.textContent = `Status: ${isMoving ? 'Moving' : 'Stopped'}`;
+            buttons.forward.classList.toggle('active', isMoving);
+        }
+
+        buttons.forward.addEventListener('click', () => {
+            sendControl('forward');
+        });
+
+        ['left', 'right'].forEach(direction => {
+            buttons[direction].addEventListener('mousedown', () => {
+                if (isMoving) sendControl(direction);
+            });
+            buttons[direction].addEventListener('mouseup', () => {
+                if (isMoving) sendControl('center');
+            });
+            buttons[direction].addEventListener('mouseleave', () => {
+                if (isMoving) sendControl('center');
+            });
+            
+            buttons[direction].addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (isMoving) sendControl(direction);
+            });
+            buttons[direction].addEventListener('touchend', (e) => {
+                e.preventDefault();
+                if (isMoving) sendControl('center');
+            });
+        });
+    </script>
+</body>
+</html>
